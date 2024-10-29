@@ -242,6 +242,8 @@ mod extra {
     use super::*;
     use crate::operation::OperationOutput;
 
+    #[cfg(feature = "axum-extra-either")]
+    impl<E1, E2> OperationOutput for axum_extra::either::Either<E1, E2> { type Inner = (); }
 
     #[cfg(feature = "axum-extra-cookie")]
     impl OperationOutput for extract::CookieJar { type Inner = (); }
