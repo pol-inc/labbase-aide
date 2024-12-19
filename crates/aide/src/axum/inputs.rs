@@ -370,6 +370,23 @@ mod extra {
         }
     }
 
+    #[cfg(feature = "axum-extra-either")]
+    impl<E1, E2, E3> OperationInput for axum_extra::either::Either3<E1, E2, E3>
+    where
+        E1: OperationInput,
+        E2: OperationInput,
+        E3: OperationInput,
+    {
+        fn operation_input(
+            ctx: &mut crate::gen::GenContext,
+            operation: &mut crate::openapi::Operation,
+        ) {
+            E1::operation_input(ctx, operation);
+            E2::operation_input(ctx, operation);
+            E3::operation_input(ctx, operation);
+        }
+    }
+
     #[cfg(feature = "axum-extra-cookie")]
     impl OperationInput for extract::CookieJar {}
 
