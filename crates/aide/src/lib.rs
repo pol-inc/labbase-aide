@@ -134,6 +134,10 @@ pub mod util;
 pub mod axum;
 
 mod helpers;
+
+#[cfg(feature = "rapidoc")]
+pub mod rapidoc;
+
 #[cfg(feature = "redoc")]
 pub mod redoc;
 
