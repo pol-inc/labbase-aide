@@ -52,7 +52,7 @@
 //!         },
 //!         ..OpenApi::default()
 //!     };
-//! 
+//!
 //!     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
 //!
 //!     axum::serve(
@@ -121,7 +121,7 @@ impl Scalar {
                         url: '{spec_url}'
                     }}
                   }}
-            
+
                   var apiReference = document.getElementById('api-reference')
                   apiReference.dataset.configuration = JSON.stringify(configuration)
                 </script>
@@ -145,7 +145,6 @@ mod axum_impl {
         routing::{get, ApiMethodRouter},
         AxumOperationHandler,
     };
-    use crate::scalar::get_static_str;
     use axum::response::Html;
 
     impl super::Scalar {
@@ -198,9 +197,9 @@ mod axum_impl {
             move || async move { Html(html) }
         }
     }
-}
 
-fn get_static_str(string: String) -> &'static str {
-    let static_str = Box::leak(string.into_boxed_str());
-    static_str
+    fn get_static_str(string: String) -> &'static str {
+        let static_str = Box::leak(string.into_boxed_str());
+        static_str
+    }
 }

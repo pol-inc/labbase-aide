@@ -52,10 +52,10 @@
 //!
 //! - [axum](https://docs.rs/axum/latest/axum/): [`aide::axum`](axum).
 //! - [actix-web](https://docs.rs/actix-web/latest/actix_web/) is **not
-//! supported** since `0.5.0` only due to lack of developer capacity,
-//! but it's likely to be supported again in the future. If you use
-//! `actix-web` you can still use the macro-based `0.4.*` version of the library
-//! for the time being.
+//!   supported** since `0.5.0` only due to lack of developer capacity,
+//!   but it's likely to be supported again in the future. If you use
+//!   `actix-web` you can still use the macro-based `0.4.*` version of the
+//!   library for the time being.
 //!
 //! ## Errors
 //!
@@ -64,7 +64,7 @@
 //!
 //! By default no action is taken on errors, in order to handle them
 //! it is possible to register an error handler in the thread-local context
-//! with [`aide::gen::on_error`](crate::gen::on_error).
+//! with [`aide::generate::on_error`](crate::generate::on_error).
 //!
 //! False positives are chosen over silently swallowing potential
 //! errors, these might happen when there is not enough contextual
@@ -83,16 +83,20 @@
 //!
 //! - `bytes`
 //! - `http`
-//! - `serde_qs` (when used with `axum`)
 //!
 //! ### axum integration
 //!
 //! `axum` and its features gates:
 //!
 //! - `axum`
-//! - `axum-ws`
+//! - `axum-form`
+//! - `axum-json`
+//! - `axum-matched-path`
 //! - `axum-multipart`
-//! - `axum-headers`
+//! - `axum-original-uri`
+//! - `axum-query`
+//! - `axum-tokio` (for `ConnectInfo`)
+//! - `axum-ws` (WebSockets)
 //!
 //! `axum-extra` and its features gates:
 //!
@@ -100,7 +104,9 @@
 //! - `axum-extra-cookie`
 //! - `axum-extra-cookie-private`
 //! - `axum-extra-form`
+//! - `axum-extra-headers`
 //! - `axum-extra-query`
+//! - `axum-extra-json-deserializer`
 //!
 //! ## MSRV
 //!
@@ -108,9 +114,10 @@
 //! it might support older versions but without guarantees.
 //!
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![warn(clippy::pedantic, missing_docs)]
+#![warn(clippy::pedantic, missing_docs, unreachable_pub, rust_2018_idioms)]
 #![allow(
     clippy::default_trait_access,
+    clippy::doc_markdown,
     clippy::module_name_repetitions,
     clippy::wildcard_imports,
     clippy::too_many_lines,
@@ -123,7 +130,7 @@ mod macros;
 mod impls;
 
 pub mod error;
-pub mod gen;
+pub mod generate;
 pub mod operation;
 
 pub mod openapi;
@@ -141,10 +148,15 @@ pub mod rapidoc;
 #[cfg(feature = "redoc")]
 pub mod redoc;
 
+#[cfg(feature = "swagger")]
+pub mod swagger;
+
 #[cfg(feature = "scalar")]
 pub mod scalar;
 
-pub use helpers::{no_api::NoApi, with_api::ApiOverride, with_api::WithApi, use_api::UseApi};
+pub use helpers::{
+    no_api::NoApi, use_api::IntoApi, use_api::UseApi, with_api::ApiOverride, with_api::WithApi,
+};
 
 pub use error::Error;
 pub use operation::{OperationInput, OperationOutput};

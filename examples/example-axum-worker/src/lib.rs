@@ -5,24 +5,22 @@ use aide::{
     openapi::{OpenApi, Tag},
     transform::TransformOpenApi,
 };
-use axum::{http::StatusCode, Extension, http};
-use tower_service::Service;
+use axum::{http, http::StatusCode, Extension, Json};
 use docs::docs_routes;
 use errors::AppError;
-use extractors::Json;
 use state::AppState;
 use todos::routes::todo_routes;
+use tower_service::Service;
 use uuid::Uuid;
-use worker::{console_log, Context, Env, event, HttpRequest};
+use worker::{console_log, event, Context, Env, HttpRequest};
 
 pub mod docs;
 pub mod errors;
-pub mod extractors;
 pub mod state;
 pub mod todos;
 
 #[event(start)]
-fn start(){
+fn start() {
     console_log!("Example docs are accessible at http://127.0.0.1:3000/docs");
 }
 
@@ -33,12 +31,11 @@ async fn fetch(
     _ctx: Context,
 ) -> worker::Result<http::Response<axum::body::Body>> {
     console_error_panic_hook::set_once();
-    aide::gen::on_error(|error| {
+    aide::generate::on_error(|error| {
         println!("{error}");
     });
 
-    aide::gen::extract_schemas(true);
-
+    aide::generate::extract_schemas(true);
 
     let state = AppState::default();
 

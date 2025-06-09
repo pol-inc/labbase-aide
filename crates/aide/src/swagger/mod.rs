@@ -1,4 +1,4 @@
-//! Generate [Redoc] ui. This feature requires the `axum` feature.
+//! Generate [Swagger] ui. This feature requires the `axum` feature.
 //!
 //! ## Example:
 //!
@@ -10,7 +10,7 @@
 //!         ApiRouter, IntoApiResponse,
 //!     },
 //!     openapi::{Info, OpenApi},
-//!     redoc::Redoc,
+//!     swagger::Swagger,
 //! };
 //! use axum::{Extension, Json};
 //! use schemars::JsonSchema;
@@ -37,8 +37,8 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     let app = ApiRouter::new()
-//!         // generate redoc-ui using the openapi spec route
-//!         .route("/redoc", Redoc::new("/api.json").axum_route())
+//!         // generate swagger-ui using the openapi spec route
+//!         .route("/swagger", Swagger::new("/api.json").axum_route())
 //!         // Change `route` to `api_route` for the route
 //!         // we'd like to expose in the documentation.
 //!         .api_route("/hello", post(hello_user))
@@ -69,52 +69,62 @@
 //! }
 //! ```
 
-/// A wrapper to embed [Redoc](https://redocly.com/) in your app.
+/// A wrapper to embed [Swagger](https://swagger.io/) in your app.
 #[must_use]
-pub struct Redoc {
+pub struct Swagger {
     title: String,
     spec_url: String,
 }
 
-impl Redoc {
-    /// Create a new [`Redoc`] wrapper with the given spec url.
+impl Swagger {
+    /// Create a new [`Swagger`] wrapper with the given spec url.
     pub fn new(spec_url: impl Into<String>) -> Self {
         Self {
-            title: "Redoc".into(),
+            title: "Swagger - UI".into(),
             spec_url: spec_url.into(),
         }
     }
 
-    /// Set the title of the Redoc page.
+    /// Set the title of the Swagger page.
     pub fn with_title(mut self, title: &str) -> Self {
         self.title = title.into();
         self
     }
 
-    /// Build the redoc-ui html page.
+    /// Build the swagger-ui html page.
     #[must_use]
     pub fn html(&self) -> String {
         format!(
             r#"<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8">
+<head>
+    <style>{swagger_css}</style>
     <title>{title}</title>
-  </head>
-
-  <body>
-    <div id="redoc-container"></div>
-    <script>
-       {redoc_js}
-
-       Redoc.init("{spec_url}", {{
-            scrollYOffset: 50
-       }}, document.getElementById('redoc-container'))
-    </script>
-  </body>
+</head>
+<body>
+<div id="swagger-ui">
+</div>
+<script>{swagger_js}</script>
+<!-- `SwaggerUIBundle` is now available on the page -->
+<script>
+    const ui = SwaggerUIBundle({{
+        url: '{spec_url}',
+        "dom_id": "\#swagger-ui",
+        "layout": "BaseLayout",
+        "deepLinking": true,
+        "showExtensions": true,
+        "showCommonExtensions": true,
+        presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIBundle.SwaggerUIStandalonePreset
+        ],
+    }})
+</script>
+</body>
 </html>
 "#,
-            redoc_js = include_str!("../../res/redoc/redoc.standalone.js"),
+            swagger_js = include_str!("../../res/swagger/swagger-ui-bundle.js"),
+            swagger_css = include_str!("../../res/swagger/swagger-ui.css"),
             title = self.title,
             spec_url = self.spec_url
         )
@@ -127,19 +137,19 @@ mod axum_impl {
         routing::{get, ApiMethodRouter},
         AxumOperationHandler,
     };
-    use crate::redoc::get_static_str;
+    use crate::swagger::get_static_str;
     use axum::response::Html;
 
-    impl super::Redoc {
-        /// Returns an [`ApiMethodRouter`] to expose the Redoc UI.
+    impl super::Swagger {
+        /// Returns an [`ApiMethodRouter`] to expose the Swagger UI.
         ///
         /// # Examples
         ///
         /// ```
         /// # use aide::axum::{ApiRouter, routing::get};
-        /// # use aide::redoc::Redoc;
+        /// # use aide::swagger::Swagger;
         /// ApiRouter::<()>::new()
-        ///     .route("/docs", Redoc::new("/openapi.json").axum_route());
+        ///     .route("/docs", Swagger::new("/openapi.json").axum_route());
         /// ```
         pub fn axum_route<S>(&self) -> ApiMethodRouter<S>
         where
@@ -155,10 +165,10 @@ mod axum_impl {
         ///
         /// ```
         /// # use aide::axum::{ApiRouter, routing::get_with};
-        /// # use aide::redoc::Redoc;
+        /// # use aide::swagger::Swagger;
         /// ApiRouter::<()>::new().api_route(
         ///     "/docs",
-        ///     get_with(Redoc::new("/openapi.json").axum_handler(), |op| {
+        ///     get_with(Swagger::new("/openapi.json").axum_handler(), |op| {
         ///         op.description("This documentation page.")
         ///     }),
         /// );
@@ -171,7 +181,7 @@ mod axum_impl {
             // This string will be used during the entire lifetime of the program
             // so it's safe to leak it
             // we can't use once_cell::sync::Lazy because it will cache the first access to the function,
-            // so you won't be able to have multiple instances of Redoc
+            // so you won't be able to have multiple instances of Swagger
             // e.g. /v1/docs and /v2/docs
             // Without caching we will have to clone whole html string on each request
             // which will use 3GiBs of RAM for 200+ concurrent requests

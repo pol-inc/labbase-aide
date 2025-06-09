@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.15.0
+
+- **added:** Basic `axum` `TypedPath` support and `TypedPath<T>` description from `T` doc comment([#212])
+- **added:** Add methods for attaching documentation to existing routes ([#203])
+- **fixed:** Fix `route_with_tsr` incorrect handling ([#203])
+
+[#203]: https://github.com/tamasfe/aide/pull/203
+
+## 0.14.2
+
+- **fixed:** `OperationInput` tuple implementations now returns inferred early
+  responses of inner types ([#197])
+- **fixed:** Properly infer response descriptions ([#193])
+- **added:** Brought back `serde_qs` support ([#200])
+
+[#193]: https://github.com/tamasfe/aide/pull/193
+[#197]: https://github.com/tamasfe/aide/pull/197
+[#200]: https://github.com/tamasfe/aide/pull/200
+
+## 0.14.1
+
+- **fixed:** Update the outdated feature list in the crate root documentation ([#186])
+- **added:** Implement OperationOutput for axum::response::NoContent ([#184])
+
+[#184]: https://github.com/tamasfe/aide/pull/184
+[#186]: https://github.com/tamasfe/aide/pull/186
+
+## 0.14.0
+
+- **breaking:** Upgrade `axum` to `0.8` ([#168])
+- **breaking:** Rename `gen` module to `generate`,
+  because `gen` is going to be a keyword in Rust 2024 ([#174])
+- **breaking:** Replace `axum-wasm` feature with inverted `axum-tokio`
+  Cargo feature ([#170])
+- **breaking:** Put axum extractor impls behind more fine-grained
+  Cargo features, see `Cargo.toml` or the docs.rs feature flags page
+  for a full list ([#170])
+- **breaking:** Drop `serde_qs`, `jwt-authorizer` features, please
+  open an issue if you were relying on one of these ([#170])
+- **fixed:** Remove trailing / from some nested paths ([#150])
+- **added:** `[api_]route_with_tsr[_and]` methods to `ApiRouter`,
+  gated behind the `axum-extra` Cargo feature ([#139])
+
+[#139]: https://github.com/tamasfe/aide/pull/139
+[#150]: https://github.com/tamasfe/aide/pull/150
+[#168]: https://github.com/tamasfe/aide/pull/168
+[#170]: https://github.com/tamasfe/aide/pull/170
+[#174]: https://github.com/tamasfe/aide/pull/174
+
+## 0.13.5
+
+- **added:** Implement `OperationHandler` for `axum::handler::Layered` ([#133])
+- **added:** Implement `OperationInput` for `axum_extra::extract::JsonDeserializer` ([#151])
+- **changed:** Make `impl tower::Service for ApiRouter` generic over the HTTP request body type ([#143])
+
+[#133]: https://github.com/tamasfe/aide/pull/133
+[#143]: https://github.com/tamasfe/aide/pull/143
+[#151]: https://github.com/tamasfe/aide/pull/151
+
 ## 0.13.4 - 2024-04-14
 
 [f473a8c](f473a8c98e1b41c8d67a4d25141ac12d57c5182a)...[bd273ad](bd273ad63df2245384a7b7e5951003aa60c53d72)
