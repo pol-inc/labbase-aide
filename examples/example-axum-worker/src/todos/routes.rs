@@ -9,12 +9,13 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
+    Json,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{extractors::Json, state::AppState};
+use crate::state::AppState;
 
 use super::TodoItem;
 
@@ -25,10 +26,13 @@ pub fn todo_routes(state: AppState) -> ApiRouter {
             post_with(create_todo, create_todo_docs).get_with(list_todos, list_todos_docs),
         )
         .api_route(
-            "/:id",
+            "/{id}",
             get_with(get_todo, get_todo_docs).delete_with(delete_todo, delete_todo_docs),
         )
-        .api_route("/:id/complete", put_with(complete_todo, complete_todo_docs))
+        .api_route(
+            "/{id}/complete",
+            put_with(complete_todo, complete_todo_docs),
+        )
         .with_state(state)
 }
 

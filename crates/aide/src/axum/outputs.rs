@@ -1,34 +1,58 @@
-use crate::openapi::{MediaType, Operation, Response, SchemaObject};
-use axum::{
-    extract::rejection::{FormRejection, JsonRejection},
-    response::{Html, Redirect},
-    Form, Json,
+use crate::{
+    openapi::{MediaType, Operation, Response, SchemaObject},
+    util::no_content_response,
 };
+#[cfg(feature = "axum-form")]
+use axum::extract::rejection::FormRejection;
+#[cfg(feature = "axum-json")]
+use axum::extract::rejection::JsonRejection;
+use axum::response::{Html, NoContent, Redirect};
+#[cfg(any(feature = "axum-json", feature = "axum-form"))]
 use http::StatusCode;
 use indexmap::IndexMap;
-use schemars::{
-    schema::{InstanceType, SingleOrVec},
-    JsonSchema,
-};
+use schemars::json_schema;
+#[cfg(any(feature = "axum-form", feature = "axum-json"))]
+use schemars::JsonSchema;
 
-use crate::{gen::GenContext, operation::OperationOutput};
+use crate::{generate::GenContext, operation::OperationOutput};
 
-impl<T> OperationOutput for Json<T>
+impl OperationOutput for NoContent {
+    type Inner = ();
+
+    fn operation_response(_ctx: &mut GenContext, _operation: &mut Operation) -> Option<Response> {
+        Some(no_content_response())
+    }
+
+    fn inferred_responses(
+        _ctx: &mut GenContext,
+        _operation: &mut Operation,
+    ) -> Vec<(Option<u16>, Response)> {
+        vec![(Some(204), no_content_response())]
+    }
+}
+
+#[cfg(feature = "axum-json")]
+impl<T> OperationOutput for axum::Json<T>
 where
     T: JsonSchema,
 {
     type Inner = T;
 
     fn operation_response(ctx: &mut GenContext, _operation: &mut Operation) -> Option<Response> {
-        let mut schema = ctx.schema.subschema_for::<T>().into_object();
+        let json_schema = ctx.schema.subschema_for::<T>();
+        let resolved_schema = ctx.resolve_schema(&json_schema);
 
         Some(Response {
-            description: schema.metadata().description.clone().unwrap_or_default(),
+            description: resolved_schema
+                .get("description")
+                .and_then(|d| d.as_str())
+                .map(String::from)
+                .unwrap_or_default(),
             content: IndexMap::from_iter([(
                 "application/json".into(),
                 MediaType {
                     schema: Some(SchemaObject {
-                        json_schema: schema.into(),
+                        json_schema,
                         example: None,
                         external_docs: None,
                     }),
@@ -40,7 +64,7 @@ where
     }
 
     fn inferred_responses(
-        ctx: &mut crate::gen::GenContext,
+        ctx: &mut crate::generate::GenContext,
         operation: &mut Operation,
     ) -> Vec<(Option<u16>, Response)> {
         if let Some(res) = Self::operation_response(ctx, operation) {
@@ -61,22 +85,28 @@ where
     }
 }
 
-impl<T> OperationOutput for Form<T>
+#[cfg(feature = "axum-form")]
+impl<T> OperationOutput for axum::extract::Form<T>
 where
     T: JsonSchema,
 {
     type Inner = T;
 
     fn operation_response(ctx: &mut GenContext, _operation: &mut Operation) -> Option<Response> {
-        let mut schema = ctx.schema.subschema_for::<T>().into_object();
+        let json_schema = ctx.schema.subschema_for::<T>();
+        let resolved_schema = ctx.resolve_schema(&json_schema);
 
         Some(Response {
-            description: schema.metadata().description.clone().unwrap_or_default(),
+            description: resolved_schema
+                .get("description")
+                .and_then(|d| d.as_str())
+                .map(String::from)
+                .unwrap_or_default(),
             content: IndexMap::from_iter([(
                 "application/x-www-form-urlencoded".into(),
                 MediaType {
                     schema: Some(SchemaObject {
-                        json_schema: schema.into(),
+                        json_schema: json_schema.into(),
                         example: None,
                         external_docs: None,
                     }),
@@ -88,7 +118,7 @@ where
     }
 
     fn inferred_responses(
-        ctx: &mut crate::gen::GenContext,
+        ctx: &mut crate::generate::GenContext,
         operation: &mut Operation,
     ) -> Vec<(Option<u16>, Response)> {
         if let Some(res) = Self::operation_response(ctx, operation) {
@@ -119,13 +149,9 @@ impl<T> OperationOutput for Html<T> {
                 "text/html".into(),
                 MediaType {
                     schema: Some(SchemaObject {
-                        json_schema: schemars::schema::SchemaObject {
-                            instance_type: Some(SingleOrVec::Single(Box::new(
-                                InstanceType::String,
-                            ))),
-                            ..Default::default()
-                        }
-                        .into(),
+                        json_schema: json_schema!({
+                            "type": "string",
+                        }),
                         example: None,
                         external_docs: None,
                     }),
@@ -137,7 +163,7 @@ impl<T> OperationOutput for Html<T> {
     }
 
     fn inferred_responses(
-        ctx: &mut crate::gen::GenContext,
+        ctx: &mut crate::generate::GenContext,
         operation: &mut Operation,
     ) -> Vec<(Option<u16>, Response)> {
         if let Some(res) = Self::operation_response(ctx, operation) {
@@ -148,6 +174,7 @@ impl<T> OperationOutput for Html<T> {
     }
 }
 
+#[cfg(feature = "axum-json")]
 impl OperationOutput for JsonRejection {
     type Inner = Self;
 
@@ -156,7 +183,7 @@ impl OperationOutput for JsonRejection {
     }
 
     fn inferred_responses(
-        ctx: &mut crate::gen::GenContext,
+        ctx: &mut crate::generate::GenContext,
         operation: &mut Operation,
     ) -> Vec<(Option<u16>, Response)> {
         if let Some(res) = Self::operation_response(ctx, operation) {
@@ -172,6 +199,7 @@ impl OperationOutput for JsonRejection {
     }
 }
 
+#[cfg(feature = "axum-form")]
 impl OperationOutput for FormRejection {
     type Inner = Self;
 
@@ -180,7 +208,7 @@ impl OperationOutput for FormRejection {
     }
 
     fn inferred_responses(
-        ctx: &mut crate::gen::GenContext,
+        ctx: &mut crate::generate::GenContext,
         operation: &mut Operation,
     ) -> Vec<(Option<u16>, Response)> {
         if let Some(res) = Self::operation_response(ctx, operation) {
@@ -196,30 +224,7 @@ impl OperationOutput for FormRejection {
     }
 }
 
-#[cfg(feature = "jwt_authorizer")]
-impl OperationOutput for jwt_authorizer::AuthError {
-    type Inner = jwt_authorizer::AuthError;
-
-    fn operation_response(ctx: &mut GenContext, operation: &mut Operation) -> Option<Response> {
-        String::operation_response(ctx, operation)
-    }
-
-    fn inferred_responses(
-        ctx: &mut crate::gen::GenContext,
-        operation: &mut Operation,
-    ) -> Vec<(Option<u16>, Response)> {
-        if let Some(res) = Self::operation_response(ctx, operation) {
-            Vec::from([
-                rejection_response(StatusCode::UNAUTHORIZED, &res),
-                rejection_response(StatusCode::INTERNAL_SERVER_ERROR, &res),
-                rejection_response(StatusCode::FORBIDDEN, &res),
-            ])
-        } else {
-            Vec::new()
-        }
-    }
-}
-
+#[cfg(any(feature = "axum-json", feature = "axum-form"))]
 fn rejection_response(status_code: StatusCode, response: &Response) -> (Option<u16>, Response) {
     (Some(status_code.as_u16()), response.clone())
 }
@@ -245,9 +250,16 @@ mod extra {
     #[cfg(feature = "axum-extra-either")]
     impl<E1, E2> OperationOutput for axum_extra::either::Either<E1, E2> { type Inner = (); }
 
+    #[cfg(feature = "axum-extra-either")]
+    impl<E1, E2, E3> OperationOutput for axum_extra::either::Either<E1, E2, E3> { type Inner = (); }
+
     #[cfg(feature = "axum-extra-cookie")]
-    impl OperationOutput for extract::CookieJar { type Inner = (); }
+    impl OperationOutput for extract::CookieJar {
+        type Inner = ();
+    }
 
     #[cfg(feature = "axum-extra-cookie-private")]
-    impl OperationOutput for extract::PrivateCookieJar { type Inner = (); }
+    impl OperationOutput for extract::PrivateCookieJar {
+        type Inner = ();
+    }
 }

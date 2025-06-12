@@ -49,7 +49,7 @@
 use std::{any::type_name, marker::PhantomData};
 
 use crate::{
-    gen::GenContext,
+    generate::GenContext,
     openapi::{
         Components, Contact, Info, License, OpenApi, Operation, Parameter, PathItem, ReferenceOr,
         Response, SecurityScheme, Server, StatusCode, Tag,
@@ -59,7 +59,9 @@ use crate::{
 use indexmap::IndexMap;
 use serde::Serialize;
 
-use crate::{error::Error, gen::in_context, operation::OperationOutput, util::iter_operations_mut};
+use crate::{
+    error::Error, generate::in_context, operation::OperationOutput, util::iter_operations_mut,
+};
 
 /// A transform helper that wraps [`OpenApi`].
 #[must_use]
@@ -173,7 +175,7 @@ impl<'t> TransformOpenApi<'t> {
     pub fn default_response_with<R, F>(self, transform: F) -> Self
     where
         R: OperationOutput,
-        F: Fn(TransformResponse<R::Inner>) -> TransformResponse<R::Inner> + Clone,
+        F: Fn(TransformResponse<'_, R::Inner>) -> TransformResponse<'_, R::Inner> + Clone,
     {
         if let Some(p) = &mut self.api.paths {
             for (_, p) in &mut p.paths {
@@ -292,7 +294,7 @@ impl<'t> TransformOpenApi<'t> {
                         .collect(),
                 );
             }
-        };
+        }
 
         self
     }
@@ -391,7 +393,7 @@ impl<'t> TransformPathItem<'t> {
     pub fn default_response_with<R, F>(self, transform: F) -> Self
     where
         R: OperationOutput,
-        F: Fn(TransformResponse<R::Inner>) -> TransformResponse<R::Inner> + Clone,
+        F: Fn(TransformResponse<'_, R::Inner>) -> TransformResponse<'_, R::Inner> + Clone,
     {
         in_context(|ctx| ctx.show_error = filter_no_duplicate_response);
 
@@ -493,21 +495,21 @@ impl<'t> TransformOperation<'t> {
     }
 
     /// Specify the operation ID.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn id(self, name: &str) -> Self {
         self.operation.operation_id = Some(name.into());
         self
     }
 
     /// Provide a summary for the operation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn summary(self, desc: &str) -> Self {
         self.operation.summary = Some(desc.into());
         self
     }
 
     /// Provide a description for the operation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn description(self, desc: &str) -> Self {
         self.operation.description = Some(desc.into());
         self
@@ -530,7 +532,7 @@ impl<'t> TransformOperation<'t> {
     ///
     /// Hiding an item causes it to be ignored
     /// completely, there is no way to restore or "unhide" it afterwards.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn hidden(mut self, hidden: bool) -> Self {
         self.hidden = hidden;
         self
@@ -543,7 +545,7 @@ impl<'t> TransformOperation<'t> {
     ///
     /// This function is automatically called for
     /// request handlers of supported web frameworks.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn input<T: OperationInput>(self) -> Self {
         in_context(|ctx| {
             T::operation_input(ctx, self.operation);
@@ -552,11 +554,11 @@ impl<'t> TransformOperation<'t> {
     }
 
     /// Modify a parameter of the operation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn parameter<T, F>(self, name: &str, transform: F) -> Self
     where
         T: Serialize,
-        F: FnOnce(TransformParameter<T>) -> TransformParameter<T>,
+        F: FnOnce(TransformParameter<'_, T>) -> TransformParameter<'_, T>,
     {
         let (idx, param) = match self
             .operation
@@ -596,17 +598,17 @@ impl<'t> TransformOperation<'t> {
     /// Modify a parameter of the operation without knowing a type.
     ///
     /// The type `()` will be used instead.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn parameter_untyped<F>(self, name: &str, transform: F) -> Self
     where
-        F: FnOnce(TransformParameter<()>) -> TransformParameter<()>,
+        F: FnOnce(TransformParameter<'_, ()>) -> TransformParameter<'_, ()>,
     {
         self.parameter(name, transform)
     }
 
     /// Set a default response for the operation if
     /// it does not already have one.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn default_response<R>(self) -> Self
     where
@@ -637,16 +639,19 @@ impl<'t> TransformOperation<'t> {
     ///
     /// This method additionally accepts a transform function
     /// to modify the generated documentation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn default_response_with<R, F>(self, transform: F) -> Self
     where
         R: OperationOutput,
-        F: FnOnce(TransformResponse<R::Inner>) -> TransformResponse<R::Inner>,
+        F: FnOnce(TransformResponse<'_, R::Inner>) -> TransformResponse<'_, R::Inner>,
     {
         in_context(|ctx| {
             if let Some(mut res) = R::operation_response(ctx, self.operation) {
-                let responses = self.operation.responses.get_or_insert_with(Default::default);
+                let responses = self
+                    .operation
+                    .responses
+                    .get_or_insert_with(Default::default);
                 if responses.default.is_none() {
                     let t = transform(TransformResponse::new(&mut res));
 
@@ -665,7 +670,7 @@ impl<'t> TransformOperation<'t> {
     }
 
     /// Add a response to the operation with the given status code.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn response<const N: u16, R>(self) -> Self
     where
@@ -684,7 +689,7 @@ impl<'t> TransformOperation<'t> {
                     .is_some()
                 {
                     ctx.error(Error::ResponseExists(StatusCode::Code(N)));
-                };
+                }
             } else {
                 tracing::debug!(type_name = type_name::<R>(), "no response info of type");
             }
@@ -697,12 +702,12 @@ impl<'t> TransformOperation<'t> {
     ///
     /// This method additionally accepts a transform function
     /// to modify the generated documentation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn response_with<const N: u16, R, F>(self, transform: F) -> Self
     where
         R: OperationOutput,
-        F: FnOnce(TransformResponse<R::Inner>) -> TransformResponse<R::Inner>,
+        F: FnOnce(TransformResponse<'_, R::Inner>) -> TransformResponse<'_, R::Inner>,
     {
         if self.operation.responses.is_none() {
             self.operation.responses = Some(Default::default());
@@ -720,7 +725,7 @@ impl<'t> TransformOperation<'t> {
                         .is_some();
                     if existing {
                         ctx.error(Error::ResponseExists(StatusCode::Code(N)));
-                    };
+                    }
                 }
             } else {
                 tracing::debug!(type_name = type_name::<R>(), "no response info of type");
@@ -733,7 +738,7 @@ impl<'t> TransformOperation<'t> {
     /// Add a response to the operation with the given status code range (e.g. 2xx).
     ///
     /// Note that the range is `100`-based, so for the range `2xx`, `2` must be provided.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn response_range<const N: u16, R>(self) -> Self
     where
@@ -752,7 +757,7 @@ impl<'t> TransformOperation<'t> {
                     .is_some()
                 {
                     ctx.error(Error::ResponseExists(StatusCode::Range(N)));
-                };
+                }
             } else {
                 tracing::debug!(type_name = type_name::<R>(), "no response info of type");
             }
@@ -767,12 +772,12 @@ impl<'t> TransformOperation<'t> {
     ///
     /// This method additionally accepts a transform function
     /// to modify the generated documentation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn response_range_with<const N: u16, R, F>(self, transform: F) -> Self
     where
         R: OperationOutput,
-        F: FnOnce(TransformResponse<R::Inner>) -> TransformResponse<R::Inner>,
+        F: FnOnce(TransformResponse<'_, R::Inner>) -> TransformResponse<'_, R::Inner>,
     {
         if self.operation.responses.is_none() {
             self.operation.responses = Some(Default::default());
@@ -790,7 +795,7 @@ impl<'t> TransformOperation<'t> {
                         .is_some();
                     if existing {
                         ctx.error(Error::ResponseExists(StatusCode::Range(N)));
-                    };
+                    }
                 }
             } else {
                 tracing::debug!(type_name = type_name::<R>(), "no response info of type");
@@ -801,13 +806,13 @@ impl<'t> TransformOperation<'t> {
     }
 
     /// Add a callback to the operation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn callback(
         self,
         callback_name: &str,
         callback_url: &str,
-        callback_transform: impl FnOnce(TransformCallback) -> TransformCallback,
+        callback_transform: impl FnOnce(TransformCallback<'_>) -> TransformCallback<'_>,
     ) -> Self {
         let callbacks = self
             .operation
@@ -856,13 +861,13 @@ impl<'t> TransformOperation<'t> {
     }
 
     /// Add a security requirement to the operation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn security_requirement(self, security_scheme: &str) -> Self {
         self.security_requirement_multi([security_scheme])
     }
 
     /// Add multi security requirement to the operation.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     pub fn security_requirement_multi<'a, I>(self, security_schemes: I) -> Self
     where
         I: IntoIterator<Item = &'a str> + Clone,
@@ -891,7 +896,7 @@ impl<'t> TransformOperation<'t> {
     ///
     /// If the scheme requirement does not exist,
     /// it will be added.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn security_requirement_scopes<I, S>(self, security_scheme: &str, scopes: I) -> Self
     where
@@ -904,7 +909,7 @@ impl<'t> TransformOperation<'t> {
     ///
     /// If the scheme requirement does not exist,
     /// it will be added.
-    #[tracing::instrument(skip_all, fields(operation_id = ?self.operation.operation_id))]
+    #[tracing::instrument(skip_all, fields(operation_id = self.operation.operation_id))]
     #[allow(clippy::missing_panics_doc)]
     pub fn security_requirement_multi_scopes<'a, I, IS, S>(
         self,
@@ -936,7 +941,7 @@ impl<'t> TransformOperation<'t> {
                         .collect(),
                 );
             }
-        };
+        }
 
         self
     }
@@ -1110,7 +1115,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "delete" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn delete(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn delete(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.delete {
             Some(op) => op,
             None => {
@@ -1130,7 +1138,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "get" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn get(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn get(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.get {
             Some(op) => op,
             None => {
@@ -1150,7 +1161,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "head" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn head(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn head(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.head {
             Some(op) => op,
             None => {
@@ -1170,7 +1184,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "options" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn options(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn options(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.options {
             Some(op) => op,
             None => {
@@ -1190,7 +1207,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "patch" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn patch(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn patch(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.patch {
             Some(op) => op,
             None => {
@@ -1210,7 +1230,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "post" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn post(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn post(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.post {
             Some(op) => op,
             None => {
@@ -1230,7 +1253,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "put" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn put(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn put(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.put {
             Some(op) => op,
             None => {
@@ -1250,7 +1276,10 @@ impl<'t> TransformCallback<'t> {
 
     /// Add a "trace" callback operation.
     #[allow(clippy::missing_panics_doc)]
-    pub fn trace(self, operation: impl FnOnce(TransformOperation) -> TransformOperation) -> Self {
+    pub fn trace(
+        self,
+        operation: impl FnOnce(TransformOperation<'_>) -> TransformOperation<'_>,
+    ) -> Self {
         let op = match &mut self.path.trace {
             Some(op) => op,
             None => {
@@ -1269,7 +1298,10 @@ impl<'t> TransformCallback<'t> {
     }
 
     /// Apply an another transform function.
-    pub fn path(mut self, transform: impl FnOnce(TransformPathItem) -> TransformPathItem) -> Self {
+    pub fn path(
+        mut self,
+        transform: impl FnOnce(TransformPathItem<'_>) -> TransformPathItem<'_>,
+    ) -> Self {
         let t = transform(TransformPathItem::new(self.path));
 
         if t.hidden {

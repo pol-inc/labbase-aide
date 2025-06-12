@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::state::AppState;
+use aide::swagger::Swagger;
 use aide::{
     axum::{
         routing::{get, get_with},
@@ -9,9 +11,7 @@ use aide::{
     redoc::Redoc,
     scalar::Scalar,
 };
-use axum::{response::IntoResponse, Extension};
-
-use crate::{extractors::Json, state::AppState};
+use axum::{response::IntoResponse, Extension, Json};
 
 pub fn docs_routes(state: AppState) -> ApiRouter {
     // We infer the return types for these routes
@@ -20,7 +20,7 @@ pub fn docs_routes(state: AppState) -> ApiRouter {
     // As a result, the `serve_redoc` route will
     // have the `text/html` content-type correctly set
     // with a 200 status.
-    aide::gen::infer_responses(true);
+    aide::generate::infer_responses(true);
 
     let router: ApiRouter = ApiRouter::new()
         .api_route_with(
@@ -43,12 +43,22 @@ pub fn docs_routes(state: AppState) -> ApiRouter {
             ),
             |p| p.security_requirement("ApiKey"),
         )
+        .api_route_with(
+            "/swagger",
+            get_with(
+                Swagger::new("/docs/private/api.json")
+                    .with_title("Aide Axum")
+                    .axum_handler(),
+                |op| op.description("This documentation page."),
+            ),
+            |p| p.security_requirement("ApiKey"),
+        )
         .route("/private/api.json", get(serve_docs))
         .with_state(state);
 
     // Afterwards we disable response inference because
     // it might be incorrect for other routes.
-    aide::gen::infer_responses(false);
+    aide::generate::infer_responses(false);
 
     router
 }
